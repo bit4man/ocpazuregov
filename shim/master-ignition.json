@@ -1,0 +1,19 @@
+{
+  "ignition": {
+    "config": {
+      "append": [
+        {
+          "source": "http://jump.rhocp.us/master.ign",
+          "verification": {}
+        }
+      ]
+    },
+    "security": {},
+    "timeouts": {},
+    "version": "2.2.0"
+  },
+  "networkd": {},
+  "passwd": {},
+  "storage": {},
+  "systemd": {}
+}

@@ -1,0 +1,16 @@
+apiVersion: config.openshift.io/v1
+kind: Infrastructure
+metadata:
+  creationTimestamp: null
+  name: cluster
+spec:
+  cloudConfig:
+    name: ""
+status:
+  apiServerInternalURI: https://api-int.azgov.rhocp.us:6443
+  apiServerURL: https://api.azgov.rhocp.us:6443
+  etcdDiscoveryDomain: azgov.rhocp.us
+  infrastructureName: azgov-dmtxd
+  platform: None
+  platformStatus:
+    type: None

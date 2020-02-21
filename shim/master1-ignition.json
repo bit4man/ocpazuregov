@@ -1,0 +1,19 @@
+{
+  "ignition": {
+    "config": {
+      "append": [
+        {
+          "source": "http://resources.rhocp.us/master1-static.ign",
+          "verification": {}
+        }
+      ]
+    },
+    "security": {},
+    "timeouts": {},
+    "version": "2.2.0"
+  },
+  "networkd": {},
+  "passwd": {},
+  "storage": {},
+  "systemd": {}
+}
