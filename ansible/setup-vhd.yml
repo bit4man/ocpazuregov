@@ -1,0 +1,108 @@
+---
+- name: Get VHD and other installation artifacts
+  hosts: localhost
+  gather_facts: no
+  connection: localhost
+  vars_files:
+  - vars/azgov.yml
+  vars:
+  - resource_group: "{{ rg }}"
+  - storage_account: "{{ cluster | lower() }}"
+  - basic_storage: "basic{{ cluster | lower() }}"
+  - virtual_network: "vn_{{ cluster }}"
+  - subnet_public: "sn_public"
+  - api_ip_name: "api_{{ cluster}}"
+  - router_ip_name: "router_{{ cluster}}"
+  - location: "usgovvirginia"
+  - domain_name: "rhocp.us"
+  - setup_dir: /home/ocp/setup
+
+  tasks:
+  - uri:
+      url: https://raw.githubusercontent.com/openshift/installer/release-4.3/data/data/rhcos.json
+      body_format: json
+    register: metadata
+  - debug:
+      var: metadata
+  - name: Get baseURI
+    set_fact:
+      vhdFile: "{{ metadata.json.baseURI + '/' + metadata.json.images['azure'].path }}"
+  - debug:
+      var: vhdFile
+  - get_url: 
+      url: "{{ metadata.json.baseURI + '/' + metadata.json.images[item].path }}"
+      dest: "/home/ocp/setup/{{ metadata.json.images[item].path }}"
+      checksum: "sha256:{{ metadata.json.images[item].sha256 }}"
+    with_items:
+    - azure
+    - initramfs
+    - iso
+    - kernel
+    - metal
+    - openstack
+    - aws
+    - qemu
+    - vmware
+
+  - set_fact: {"rhcos_{{ item }}":"{{ setup_dir + '/' + metadata.json.images[item].path }}"}
+    with_items:
+    - azure
+    - initramfs
+    - iso
+    - kernel
+    - metal
+    - openstack
+    - aws
+    - qemu
+    - vmware
+
+  - debug:
+      var: rhcos_azure
+
+  - name: Install required packages
+    become: yes
+    package:
+      name: "{{ item }}"
+      state: present
+    with_items:
+    - qemu-img
+    - jq
+
+  - name: gunzip azure file
+    shell: gunzip -f {{ rhcos_azure }}
+    args:
+      chdir: "{{ setup_dir }}"
+  - set_fact:
+      azure_unzipped: "{{ rhcos_azure | regex_replace('\\.gz$','') }}"
+  - debug:
+      var: azure_unzipped
+
+  - name: Resize image prior to upload
+    shell: 
+      cmd: $HOME/bin/make-azure-vhd.sh {{ azure_unzipped }}
+      chdir: "{{ setup_dir }}"
+    register: convert
+  - debug:
+      var: convert
+  
+  - name: Create rhcos.vhd storage blob
+    azure_rm_storageblob:
+      resource_group: "{{ resource_group }}"
+      storage_account_name: "{{ storage_account }}"
+      container: rhcos
+      blob: "rhcos-{{ rhcos_version }}.vhd"
+      blob_type: page
+      src: "{{ azure_unzipped }}"
+    when: convert is succeeded
+    register: rhcos_storage_blob
+  - debug:
+      var: rhcos_storage_blob
+
+  - set_fact:
+      storageBlob: "https://{{ storage_account }}.blob.core.usgovcloudapi.net/rhcos/rhcos-{{ rhcos_version }}.vhd"
+  - name: Create rhcos image for VMs
+    azure_rm_image:
+      name: rhcos-4.3
+      os_type: Linux
+      resource_group: "{{ resource_group }}"
+      source: "{{ storageBlob }}"

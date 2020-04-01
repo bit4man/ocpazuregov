@@ -1,0 +1,136 @@
+---
+- name: Resource Group
+  hosts: localhost
+  gather_facts: no
+  connection: localhost
+  vars_files:
+  - vars/azgov.yml
+  vars:
+  - resource_group: "{{ rg }}"
+  - storage_account: "{{ cluster | lower() }}"
+  - basic_storage: "basic{{ cluster | lower() }}"
+  - virtual_network: "vn_{{ cluster }}"
+  - subnet_public: "sn_public"
+  - api_ip_name: "api_{{ cluster}}"
+  - router_ip_name: "router_{{ cluster}}"
+  - location: "usgovvirginia"
+  - domain_name: "rhocp.us"
+
+  tasks:
+  - name: Create Resource Group
+    azure_rm_resourcegroup:
+      name: "{{ rg }}"
+      location: "{{ location }}"
+    register: rgroup
+  - debug:
+      var: rgroup
+
+  - name: Create storage account
+    azure_rm_storageaccount:
+      resource_group: "{{ rg }}"
+      name: "{{ storage_account }}"
+      account_type: Premium_LRS
+
+  - debug:
+      var: basic_storage
+  - name: Create Basic storage account
+    azure_rm_storageaccount:
+      resource_group: "{{ rg }}"
+      name: "{{ basic_storage }}"
+      account_type: Standard_LRS
+    register: standard_storage_result
+  - debug:
+      var: standard_storage_result
+
+  - name: Create virtual network
+    azure_rm_virtualnetwork:
+      resource_group: "{{ rg }}"
+      name: "{{ virtual_network }}"
+      address_prefixes: "10.10.0.0/16"
+
+  - name: Add subnet
+    azure_rm_subnet:
+      resource_group: "{{ rg }}"
+      name: sn_public
+      address_prefix: "10.10.0.0/24"
+      virtual_network: "{{ virtual_network }}"
+
+  - name: Create API frontend IP
+    azure_rm_publicipaddress:
+      resource_group: "{{ rg }}"
+      allocation_method: Static
+      name: "{{ api_ip_name }}"
+    register: api_ip
+
+  - name: Create Router frontend IP
+    azure_rm_publicipaddress:
+      resource_group: "{{ rg }}"
+      allocation_method: Static
+      name: "{{ router_ip_name }}"
+    register: router_ip
+
+  - debug:
+      var: api_ip
+  - debug:
+      var: router_ip
+
+  - name: Create an azure container registry
+    azure_rm_containerregistry:
+      name: ocpRegistry
+      location: "{{ location }}"
+      resource_group: "{{ rg }}"
+      admin_user_enabled: true
+      sku: Premium
+      tags:
+        Release: 4.3.8
+        Environment: Trial
+    register: container_registry
+  - debug:
+      var: container_registry
+ 
+  - name: Add Storage Blob Container
+    azure_rm_storageblob:
+      resource_group: "{{ rg }}"
+      storage_account_name: "{{ storage_account }}"
+      container: rhcos
+      state: present
+
+  - name: Create Public DNS Zone
+    azure_rm_dnszone:
+      resource_group: "{{ rg }}"
+      name: "{{ domain_name }}"
+      state: present
+      type: public
+    register: dns_public
+
+  - name: Create DNS for Public Entry points
+    azure_rm_dnsrecordset:
+      resource_group: "{{ rg }}"
+      zone_name: "{{ domain_name }}"
+      record_type: A
+      relative_name: "{{ item.host }}"
+      records:
+      - entry: "{{ item.ip }}"
+    with_items:
+    - host: "api.{{cluster}}"
+      ip: "{{api_ip.state.ip_address}}"
+    - host: "*.apps.{{ cluster }}"
+      ip: "{{router_ip.state.ip_address}}"
+
+  - name: Create rhcos.vhd storage blog
+    azure_rm_storageblob:
+      resource_group: "{{ resource_group }}"
+      storage_account_name: "{{ storage_account }}"
+      container: rhcos
+      blob: rhcos-4.3.8.vhd
+      src: "/home/ocp/setup/rhcos.vhd"
+
+  - name: Create Private DNS Zone
+    azure_rm_dnszone:
+      resource_group: "{{ rg }}"
+      name: rhocp.us
+      state: present
+      type: private
+    register: dns_private
+
+  

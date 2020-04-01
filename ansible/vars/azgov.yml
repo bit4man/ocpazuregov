@@ -1,0 +1,13 @@
+---
+rg: "rg_rhgov_{{ cluster }}"
+cluster: ocp43
+rhcos_version: 4.3.8
+resource_group: "{{ rg }}"
+storage_account: "{{ cluster | lower() }}"
+basic_storage: "basic{{ cluster | lower() }}"
+rhcos_json: "https://raw.githubusercontent.com/openshift/installer/0a7f198c1d5667152ef5982fd2fc0c22abc4336f/data/data/rhcos.json"
+ocp_bios: "https://mirror.openshift.com/pub/openshift-v4/dependencies/rhcos/4.3/{{ rhcos_version }}/rhcos-4.3.0-x86_64-metal.raw.gz"
+ocp_initramfs: "https://mirror.openshift.com/pub/openshift-v4/dependencies/rhcos/4.3/{{ rhcos_version }}/rhcos-4.3.0-x86_64-installer-initramfs.img"
+ocp_install_kernel: "https://mirror.openshift.com/pub/openshift-v4/dependencies/rhcos/4.3/{{ rhcos_version }}/rhcos-4.3.0-x86_64-installer-kernel"
+ocp_client: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{ rhcos_version }}/openshift-client-linux-4.3.0.tar.gz"
+ocp_installer: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{ rhcos_version }}/openshift-install-linux-4.3.0.tar.gz"

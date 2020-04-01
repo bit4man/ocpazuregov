@@ -1,0 +1,78 @@
+---
+- hosts: localhost
+  connection: local
+  vars:
+  - resource_group: "{{ rg }}"
+  - storage_account: "{{ cluster }}"
+  - basic_storage: "basic{{ cluster | lower() }}"
+  - virtual_network: "vn_{{ cluster }}"
+  - subnet_public: "sn_public"
+  - location: "usgovvirginia"
+
+  tasks:
+  - name: Create public ip
+    azure_rm_publicipaddress:
+      resource_group: "{{ resource_group }}"
+      allocation_method: Static
+      name: bastion_ip
+    register: bastion_ip
+
+  - name: Create security group that allows SSH
+    azure_rm_securitygroup:
+      resource_group: "{{ resource_group }}"
+      name: sg_bastion
+      rules:
+        - name: SSH
+          protocol: Tcp
+          destination_port_range: 22
+          access: Allow
+          priority: 101
+          direction: Inbound
+
+  - name: Create NIC
+    azure_rm_networkinterface:
+      resource_group: "{{ resource_group }}"
+      name: bastion_nic01
+      virtual_network: "{{virtual_network}}"
+      subnet: "{{subnet_public}}"
+      public_ip_name: bastion_ip
+      security_group: sg_bastion
+
+  - name: Create OS disk
+    azure_rm_manageddisk:
+      name: bastionosdisk
+      disk_size_gb: 15
+      resource_group: "{{ resource_group }}"
+      location: "{{ location }}"
+    register: manageddisk
+  - debug:
+      var: manageddisk
+
+  - name: Create virtual machine
+    azure_rm_virtualmachine:
+      resource_group: "{{ resource_group }}"
+      os_type: Linux
+      name: bastion
+      vm_size: Standard_D1_v2
+      managed_disk_type: Standard_LRS
+      data_disks:
+      - caching: ReadWrite
+        disk_size_gb: 32
+        managed_disk_type: StandardSSD_LRS
+        storage_account_name: "{{ basic_storage }}"
+        storage_blob_name: "bastion_data.vhd"
+        lun: 0
+      admin_username: ocp
+      ssh_password_enabled: false
+      ssh_public_keys:
+      - key_data: "{{ lookup('file', '/home/ocp/.ssh/id_ose.pub') }}"
+        path: /home/ocp/.ssh/authorized_keys
+      network_interfaces: bastion_nic01
+      boot_diagnostics:
+        enabled: true
+        storage_account: "{{ basic_storage }}"
+      image:
+        offer: RHEL
+        publisher: RedHat
+        sku: '8.1'
+        version: latest

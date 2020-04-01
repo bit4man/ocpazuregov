@@ -1,0 +1,17 @@
+---
+- name: Resource Group
+  hosts: localhost
+  connection: localhost
+  tasks:
+  - name: Create Resource Group
+    azure_rm_resourcegroup:
+      name: ansible-rg
+      location: usgovvirginia
+    register: rg
+  - debug:
+      var: rg
+  - name: Remove Resource group
+    azure_rm_resourcegroup:
+      name: ansible-rg
+      force_delete_nonempty: yes
+      state: absent
